@@ -116,25 +116,200 @@ When `userEmail` is absent from the event, the service falls back to `user-<user
 
 ## Running Locally
 
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Java 21 and Maven installed
+- auth-service running on port 8080 (needed to generate valid JWT tokens)
+
 ### 1. Start infrastructure
 
 ```bash
+cd notification-service
 docker-compose up -d
 ```
 
-This starts PostgreSQL (port 5437) and RabbitMQ (port 5672 / management 15672).
+This starts:
+- **PostgreSQL** on port `5437` (database `fiapx_notification`, user `fiapx`, password `fiapx123`)
+- **RabbitMQ** on port `5672` (AMQP) and `15672` (Management UI — login: `fiapx` / `fiapx123`)
+
+Verify both containers are healthy:
+
+```bash
+docker-compose ps
+```
 
 ### 2. Run the application
 
-Run from your IDE or with Maven:
+**Option A — Maven (terminal):**
 
 ```bash
 mvn spring-boot:run
 ```
 
-The application starts on **port 8085**. All defaults in `application.yml` point to `localhost`.
+**Option B — IDE (IntelliJ / Eclipse):**
 
-## Tests
+Run the main class `NotificationServiceApplication` directly using the Run/Debug button in your IDE. No extra configuration is needed — all defaults in `application.yml` already point to `localhost`.
+
+The application starts on **port 8085**. Flyway automatically runs the database migration on startup.
+
+Verify the service is running:
+
+```
+http://localhost:8085/actuator/health
+```
+
+### 3. Obtain a JWT token (via auth-service)
+
+The auth-service must be running on port `8080`. Authenticate to get a token:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"useradmin@email.com","password":"Admin@12345"}' | jq -r '.bearerToken')
+
+echo $TOKEN
+```
+
+Extract the `userId` (JWT subject) — you will need it for the RabbitMQ test payloads:
+
+```bash
+echo $TOKEN | cut -d'.' -f2 | tr '_-' '/+' | awk '{while(length%4)$0=$0"=";print}' | base64 -d | jq -r '.sub'
+```
+
+### 4. Test the API endpoint (empty list)
+
+```bash
+curl -s http://localhost:8085/api/v1/notifications \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Expected response: `[]` (no notifications yet).
+
+You can also test via **Swagger UI** at `http://localhost:8085/swagger-ui.html`. Click **Authorize** and enter `Bearer <your-token>`.
+
+### 5. Test without a token (should return 401/403)
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8085/api/v1/notifications
+```
+
+Expected: `401` or `403`.
+
+## Local Testing with RabbitMQ Events
+
+Notifications are created by consuming RabbitMQ events. You can publish test events using the **RabbitMQ Management UI** at `http://localhost:15672`.
+
+Navigate to **Exchanges** → `fiapx.events` → **Publish message**.
+
+### Test 1 — Processing completed event
+
+- **Routing key:** `video.processing.completed`
+- **Properties:** `content_type` = `application/json`
+- **Payload** (replace `<USER_ID>` with the UUID from Step 3):
+
+```json
+{
+  "jobId": "a1b2c3d4-1111-2222-3333-444455556666",
+  "uploadId": "b2c3d4e5-5555-6666-7777-888899990000",
+  "userId": "<USER_ID>",
+  "userEmail": "useradmin@email.com",
+  "filename": "meu-video.mp4",
+  "resultS3Key": "processed/abc123/meu-video.zip",
+  "status": "COMPLETED",
+  "errorMessage": null,
+  "timestamp": "2026-07-06T12:00:00"
+}
+```
+
+**Expected console output:**
+
+```
+Notification: processing completed for uploadId=b2c3d4e5-..., user=...
+
+[EMAIL SIMULATION]
+To:      useradmin@email.com
+Subject: Your video 'meu-video.mp4' has been processed successfully!
+Body:    Good news! Your video 'meu-video.mp4' has been processed.
+         The extracted frames are available at: processed/abc123/meu-video.zip
+
+         FIAP-X Video Processing Platform
+```
+
+After publishing, call the API again to verify the notification was persisted:
+
+```bash
+curl -s http://localhost:8085/api/v1/notifications \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+### Test 2 — Processing failed event
+
+- **Routing key:** `video.processing.failed`
+- **Payload:**
+
+```json
+{
+  "jobId": "f1a2b3c4-aaaa-bbbb-cccc-dddd11112222",
+  "uploadId": "e5f6a7b8-3333-4444-5555-666677778888",
+  "userId": "<USER_ID>",
+  "userEmail": "useradmin@email.com",
+  "filename": "video-erro.mp4",
+  "resultS3Key": null,
+  "status": "FAILED",
+  "errorMessage": "Codec not supported",
+  "timestamp": "2026-07-06T12:05:00"
+}
+```
+
+**Expected console output:**
+
+```
+Notification: processing failed for uploadId=e5f6a7b8-...: Codec not supported
+
+[EMAIL SIMULATION]
+To:      useradmin@email.com
+Subject: Video processing failed for 'video-erro.mp4'
+```
+
+### Test 3 — Email fallback (empty userEmail)
+
+- **Routing key:** `video.processing.completed`
+- **Payload:**
+
+```json
+{
+  "jobId": "c9d8e7f6-1234-5678-9abc-def012345678",
+  "uploadId": "d4e5f6a7-abcd-ef01-2345-678901234567",
+  "userId": "<USER_ID>",
+  "userEmail": "",
+  "filename": "sem-email.mp4",
+  "resultS3Key": "processed/xyz/sem-email.zip",
+  "status": "COMPLETED",
+  "errorMessage": null,
+  "timestamp": "2026-07-06T12:10:00"
+}
+```
+
+**Expected:** The `To:` field in the email simulation log should show `user-<USER_ID>@fiapx.local` (fallback when `userEmail` is empty).
+
+### Verification — List all notifications
+
+After all three tests, the API should return 3 notifications:
+
+```bash
+curl -s http://localhost:8085/api/v1/notifications \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+You can also verify directly in the database:
+
+```bash
+docker exec -it fiapx-notification-postgres psql -U fiapx -d fiapx_notification \
+  -c "SELECT id, email, subject, type, sent, created_at FROM notifications;"
+```
+
+## Automated Tests
 
 ```bash
 mvn test
