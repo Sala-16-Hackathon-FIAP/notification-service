@@ -31,9 +31,9 @@ public class NotificationEventConsumer {
 
     @PostConstruct
     public void registerConsumers() {
-        consumer.consume(new TopicBinding(EXCHANGE, QUEUE_COMPLETED, "video.processing.completed"),
+        consumer.consume(new TopicBinding(EXCHANGE, "video.processing.completed", QUEUE_COMPLETED),
                 ProcessingJobEvent.class, this::handleProcessingCompleted);
-        consumer.consume(new TopicBinding(EXCHANGE, QUEUE_FAILED, "video.processing.failed"),
+        consumer.consume(new TopicBinding(EXCHANGE, "video.processing.failed", QUEUE_FAILED),
                 ProcessingJobEvent.class, this::handleProcessingFailed);
     }
 
