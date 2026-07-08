@@ -327,3 +327,7 @@ The `GITHUB_TOKEN` secret is required in CI to download `rabbit-topic-lib` from 
 
 - PostgreSQL 16, schema: `fiapx_notification`
 - Migrations managed by Flyway (`src/main/resources/db/migration`)
+
+## Acknowledgments
+
+This project was developed with the assistance of [Claude](https://claude.com/claude-code) (Anthropic) as an AI pair-programming tool for code implementation, debugging, and documentation.
