@@ -60,6 +60,7 @@ spec:
                 secretKeyRef:
                   name: notification-service-secrets
                   key: new-relic-license-key
+                  optional: true
           livenessProbe:
             httpGet:
               path: /actuator/health
