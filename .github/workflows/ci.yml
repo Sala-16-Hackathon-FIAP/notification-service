@@ -88,7 +88,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/fiapx-notification-service
           tags: |
-            type=sha
+            type=sha,format=long
             type=raw,value=latest
 
       - name: Build and push
@@ -134,7 +134,7 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          IMAGE="ghcr.io/${{ github.repository_owner }}/fiapx-notification-service:latest"
+          IMAGE="ghcr.io/${{ github.repository_owner }}/fiapx-notification-service:sha-${{ github.sha }}"
           sed -i "s|NOTIFICATION_SERVICE_IMAGE|$IMAGE|g" k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/deployment.yaml
