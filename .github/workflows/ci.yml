@@ -2,7 +2,7 @@ name: CI/CD - notification-service
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "feature/modulo5"]
   pull_request:
     branches: ["main"]
 
@@ -52,13 +52,13 @@ jobs:
         run: mvn -B clean verify
 
       - name: SonarCloud analysis
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/modulo5')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mvn -B sonar:sonar \
-            -Dsonar.projectKey=fiapx_notification-service \
-            -Dsonar.organization=fiapx \
+            -Dsonar.projectKey=Sala-16-Hackathon-FIAP_notification-service \
+            -Dsonar.organization=sala-16-hackathon-fiap \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
@@ -68,7 +68,7 @@ jobs:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/modulo5')
     permissions:
       contents: read
       packages: write
@@ -104,7 +104,7 @@ jobs:
     name: Deploy to EKS
     runs-on: ubuntu-latest
     needs: docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/modulo5')
     steps:
       - uses: actions/checkout@v4
 

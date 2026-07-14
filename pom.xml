@@ -14,8 +14,8 @@
     <properties>
         <java.version>21</java.version>
         <jacoco.version>0.8.14</jacoco.version>
-        <sonar.projectKey>fiapx_notification-service</sonar.projectKey>
-        <sonar.organization>fiapx</sonar.organization>
+        <sonar.projectKey>Sala-16-Hackathon-FIAP_notification-service</sonar.projectKey>
+        <sonar.organization>sala-16-hackathon-fiap</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     </properties>
     <repositories>
