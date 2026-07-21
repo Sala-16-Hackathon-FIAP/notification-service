@@ -2,6 +2,10 @@
 
 Listens for processing completion and failure events from RabbitMQ, persists a notification record, and simulates sending an email (logs to console). Exposes an endpoint for users to retrieve their notifications.
 
+![FIAP-X platform architecture](docs/architecture.png)
+
+> High-level architecture of the FIAP-X platform — microservices, choreographed saga over RabbitMQ, database-per-service (RDS), object storage (S3), running on EKS and provisioned with Terraform.
+
 ## Technology Stack
 
 - **Java 21** + **Spring Boot 3.5.0**
